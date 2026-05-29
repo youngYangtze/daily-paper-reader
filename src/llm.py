@@ -806,7 +806,10 @@ class ClientFactory:
         """
         model_env = (os.getenv('LLM_MODEL') or '').strip()
         if not model_env:
-            raise ValueError("缺少必要环境变量: LLM_MODEL（格式为 'deepseek/model'）")
+            raise ValueError(
+                "缺少必要环境变量: LLM_MODEL（格式为 'provider/model'，"
+                "例如 'deepseek/deepseek-v4-flash' 或 'openai/gpt-4o'）"
+            )
 
         provider, model = parse_provider_model(model_env)
         api_key = (os.getenv('LLM_API_KEY') or '').strip() or None
@@ -814,8 +817,24 @@ class ClientFactory:
 
         if provider == 'deepseek':
             base_url = base_url or DEFAULT_DEEPSEEK_BASE_URL
-            return DeepSeekClient(api_key=api_key or os.getenv('DEEPSEEK_API_KEY', ''), model=model, base_url=base_url)
-        raise ValueError(f"当前仅支持 DeepSeek API，请使用 'deepseek/模型名'，当前 provider={provider}")
+            return DeepSeekClient(
+                api_key=api_key or os.getenv('DEEPSEEK_API_KEY', ''),
+                model=model,
+                base_url=base_url,
+            )
+
+        # 任意 OpenAI 兼容的第三方 API
+        if not base_url:
+            raise ValueError(
+                f"使用第三方模型供应商 '{provider}' 时，必须通过 LLM_BASE_URL "
+                f"环境变量提供 API 地址。"
+            )
+        if not api_key:
+            raise ValueError(
+                f"使用第三方模型供应商 '{provider}' 时，必须通过 LLM_API_KEY "
+                f"环境变量提供 API Key。"
+            )
+        return LLMClient(api_key=api_key, model=model, base_url=base_url)
 
     @staticmethod
     def from_config(_config: dict | None = None):

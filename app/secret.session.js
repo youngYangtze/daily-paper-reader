@@ -1144,7 +1144,19 @@
             </div>
 
             <div id="secret-setup-deepseek-section" class="secret-setup-step2-block">
-              <div class="secret-setup-step2-title">DeepSeek API（必填）</div>
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                <div class="secret-setup-step2-title" style="margin-bottom:0;">大模型 API 配置</div>
+                <div style="display:flex; gap:12px; font-size:13px;">
+                  <label style="cursor:pointer; display:flex; align-items:center; gap:4px;">
+                    <input type="radio" name="secret-setup-provider" value="deepseek" checked />
+                    DeepSeek 官方
+                  </label>
+                  <label style="cursor:pointer; display:flex; align-items:center; gap:4px;">
+                    <input type="radio" name="secret-setup-provider" value="custom" />
+                    第三方供应商
+                  </label>
+                </div>
+              </div>
               <p class="secret-setup-step2-note">
                 DeepSeek 用于 query enrich、LLM refine、总结与聊天；Reranker 可在右侧单独选择。
               </p>
@@ -1216,17 +1228,64 @@
                 </div>
               </div>
               <div id="secret-setup-reranker-status" style="font-size:12px; color:#666; line-height:1.6;"></div>
-              <input type="radio" name="secret-setup-provider" value="deepseek" checked style="display:none;" />
             </div>
 
-            <div id="secret-setup-custom-section" style="display:none;">
-              <input id="secret-setup-custom-api-key" type="hidden" />
-              <input id="secret-setup-custom-base-url" type="hidden" />
-              <input id="secret-setup-custom-model-1" type="hidden" />
-              <input id="secret-setup-custom-model-2" type="hidden" />
-              <input id="secret-setup-custom-model-3" type="hidden" />
-              <button id="secret-setup-custom-test" type="button" style="display:none;"></button>
-              <div id="secret-setup-custom-status" style="display:none;"></div>
+            <div id="secret-setup-custom-section" class="secret-setup-step2-block" style="display:none;">
+              <div class="secret-setup-step2-title">第三方 API 供应商</div>
+              <p class="secret-setup-step2-note">
+                填入任意 OpenAI 兼容的 API 地址与模型名称。支持多个模型，用逗号分隔。
+              </p>
+              <div class="secret-setup-input-row" style="margin-bottom:6px;">
+                <input
+                  id="secret-setup-custom-api-key"
+                  type="password"
+                  autocomplete="off"
+                  placeholder="API Key，例如：sk-xxxx"
+                  style="width:100%; box-sizing:border-box; padding:6px 8px; font-size:13px;"
+                />
+              </div>
+              <div class="secret-setup-input-row" style="margin-bottom:6px;">
+                <input
+                  id="secret-setup-custom-base-url"
+                  type="text"
+                  autocomplete="off"
+                  placeholder="API Base URL，例如：https://api.cpu.moe/v1"
+                  style="width:100%; box-sizing:border-box; padding:6px 8px; font-size:13px;"
+                />
+              </div>
+              <div class="secret-setup-input-row" style="margin-bottom:6px;">
+                <input
+                  id="secret-setup-custom-model-1"
+                  type="text"
+                  autocomplete="off"
+                  placeholder="模型 1，例如：gpt-5.5"
+                  style="width:100%; box-sizing:border-box; padding:6px 8px; font-size:13px;"
+                />
+              </div>
+              <div class="secret-setup-input-row" style="margin-bottom:6px;">
+                <input
+                  id="secret-setup-custom-model-2"
+                  type="text"
+                  autocomplete="off"
+                  placeholder="模型 2（可选），例如：claude-sonnet-4"
+                  style="width:100%; box-sizing:border-box; padding:6px 8px; font-size:13px;"
+                />
+              </div>
+              <div class="secret-setup-input-row" style="margin-bottom:6px;">
+                <input
+                  id="secret-setup-custom-model-3"
+                  type="text"
+                  autocomplete="off"
+                  placeholder="模型 3（可选），例如：deepseek-v4-pro"
+                  style="width:100%; box-sizing:border-box; padding:6px 8px; font-size:13px;"
+                />
+              </div>
+              <button id="secret-setup-custom-test" type="button" class="secret-gate-btn secondary">
+                测试连接
+              </button>
+              <div id="secret-setup-custom-status" style="min-height:18px; font-size:12px; color:#999; margin-top:6px;">
+                将依次用已填写的模型发送 <code>hello world</code>，检查接口与模型是否可用。
+              </div>
             </div>
           </div>
         </div>
@@ -1391,8 +1450,18 @@
         rerankerBaseUrlInput.setAttribute('data-reranker-profile', profile.value);
         rerankerStatusEl.textContent = `${profile.note} 模型：${profile.model}`;
       };
+      const customSection = document.getElementById('secret-setup-custom-section');
       const syncProviderSections = () => {
-        deepseekSection.style.display = 'block';
+        const selected = providerInputs.find((input) => input.checked);
+        const isCustom = selected && selected.value === 'custom';
+        deepseekSection.style.display = isCustom ? 'none' : 'block';
+        customSection.style.display = isCustom ? 'block' : 'none';
+        // Reset OK flags when switching providers
+        deepseekOk = !isCustom ? deepseekOk : false;
+        if (isCustom) {
+          deepseekStatusEl.innerHTML = '已切换到第三方供应商模式。';
+          deepseekStatusEl.style.color = '#999';
+        }
       };
 
       const resetGithubStatus = () => {
@@ -1455,6 +1524,37 @@
       };
 
       const collectProviderDraft = () => {
+        const selected = providerInputs.find((input) => input.checked);
+        const isCustom = selected && selected.value === 'custom';
+
+        if (isCustom) {
+          const apiKey = normalizeText(customApiKeyInput.value);
+          const baseUrl = normalizeBaseUrlForStorage(customBaseUrlInput.value);
+          const models = sanitizeModelList(
+            [customModel1Input.value, customModel2Input.value, customModel3Input.value],
+            99,
+          );
+          if (!apiKey) {
+            throw new Error('请先输入第三方 API Key。');
+          }
+          if (!baseUrl) {
+            throw new Error('请先输入第三方 API Base URL。');
+          }
+          if (!models.length) {
+            throw new Error('请至少填写一个模型名称。');
+          }
+          const reranker = buildRerankerDraft(apiKey, baseUrl);
+          return {
+            providerType: 'custom',
+            summaryApiKey: apiKey,
+            summaryBaseUrl: baseUrl,
+            summaryModel: models[0],
+            chatModels: models,
+            skipRerank: false,
+            reranker: { ...reranker },
+          };
+        }
+
         const apiKey = normalizeText(deepseekInput.value);
         const model = selectedDeepSeekModel();
         if (!apiKey) {
@@ -1471,13 +1571,16 @@
           summaryModel: model,
           chatModels: getDefaultDeepSeekChatModels(),
           skipRerank: false,
-          reranker: {
-            ...reranker,
-          },
+          reranker: { ...reranker },
         };
       };
 
       const buildPingEntries = () => {
+        const selected = providerInputs.find((input) => input.checked);
+        const isCustom = selected && selected.value === 'custom';
+        if (isCustom) {
+          return buildCustomPingEntries();
+        }
         const apiKey = normalizeText(deepseekInput.value);
         const model = selectedDeepSeekModel();
         if (!apiKey || !model) {
@@ -1490,6 +1593,19 @@
             model,
           },
         ];
+      };
+
+      const buildCustomPingEntries = () => {
+        const apiKey = normalizeText(customApiKeyInput.value);
+        const baseUrl = normalizeBaseUrlForStorage(customBaseUrlInput.value);
+        const models = sanitizeModelList(
+          [customModel1Input.value, customModel2Input.value, customModel3Input.value],
+          99,
+        );
+        if (!apiKey || !baseUrl || !models.length) {
+          return [];
+        }
+        return models.map((model) => ({ apiKey, baseUrl, model }));
       };
 
       const bindResetOnInput = (elements, resetFn) => {
@@ -1691,6 +1807,26 @@
         }
       });
 
+      customTestBtn.addEventListener('click', async () => {
+        customTestBtn.disabled = true;
+        try {
+          const entries = buildCustomPingEntries();
+          if (!entries.length) {
+            customStatusEl.textContent = '请至少填写 API Key、Base URL 和一个模型名称。';
+            customStatusEl.style.color = '#c00';
+            return;
+          }
+          const models = await pingChatModels(entries, customStatusEl);
+          customStatusEl.textContent = `✅ 配置可用：${models.join(', ')}`;
+          customStatusEl.style.color = '#28a745';
+        } catch (e) {
+          customStatusEl.textContent = `❌ 测试失败：${e.message || e}`;
+          customStatusEl.style.color = '#c00';
+        } finally {
+          customTestBtn.disabled = false;
+        }
+      });
+
       genBtn.addEventListener('click', async () => {
         const githubToken = normalizeText(githubInput.value);
         const localOnly = isLocalDebugHost();
@@ -1708,7 +1844,11 @@
         }
 
         if (providerDraft.providerType === 'deepseek' && !deepseekOk) {
-          setErrorText('请先点击“测试当前配置”，确认 DeepSeek 配置可用。', '#c00');
+          setErrorText('请先点击"测试当前配置"，确认 DeepSeek 配置可用。', '#c00');
+          return;
+        }
+        if (providerDraft.providerType === 'custom' && !buildCustomPingEntries().length) {
+          setErrorText('请先填写第三方 API Key、Base URL 和至少一个模型。', '#c00');
           return;
         }
 

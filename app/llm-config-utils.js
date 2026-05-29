@@ -140,7 +140,7 @@
     if (normalizedModel.startsWith('deepseek-')) {
       return 'deepseek';
     }
-    return 'unsupported';
+    return 'openai-compat';
   };
 
   const resolveJsonResponseMode = ({ baseUrl, model, preferSchema = true }) => {
@@ -161,7 +161,8 @@
   };
 
   const shouldUseXApiKeyHeader = ({ baseUrl, model }) => {
-    return true;
+    const profile = inferChatApiProfile(baseUrl, model);
+    return profile === 'deepseek';
   };
 
   const buildStreamingChatPayload = ({ baseUrl, model, messages }) => {
